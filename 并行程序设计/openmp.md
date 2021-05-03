@@ -4,6 +4,8 @@
 
 参考博客：https://blog.csdn.net/dulingwen/article/details/103711344
 
+​	https://www.cnblogs.com/liangliangh/p/3565136.html
+
 - ​	编译指导语句
 - ​    库函数
 - ​    环境变量
@@ -156,6 +158,112 @@ std::cout << m << std::endl; //得到的值是对应的60000
 
 ```
 
-- flush
+- flush：所有线程对多有共享对象具有相同的内存视图，将对变量的更新直接协会内存中去的！对于一些场景中对应的将当前修改的值，每次修改之后都直接写回到内存之中、保证有其它程序的时候可以很方便的取出来！
 
-还有点多！
+```cpp
+int data = 0, flag = 0;
+#pragma omp parallel sections num_threads(2) shared(data, flag)
+{
+    #pragma omp section 
+    {
+        #pragma omp critical
+        std::cout << "thread" << omp_get_thread_num() << std::endl;
+    	#pragma omp flush(data)
+        flag = 1;
+        #pragma omp flush(flag) //第10行代码告诉编译器，确保data的新值已经写回内存
+    }
+    #pragma omp scetion
+    {
+        while(!flag){
+            #pragma omp flush(flag)
+        }
+        #pragma omp critical
+        std::cout << "thread" << omp_get_thread_num() << std::endl;
+        #pragma omp flush(data)
+        --data
+        std::cout << data << std::endl;
+    }
+}
+```
+
+- ordered:确保当前的代码可以按照迭代的次数执行（像对应的串行程序一样的）
+
+```cpp
+#pragma omp parallel num_threads(8)
+{
+    #pragma omp for ordered
+    for(int i=0; i<10; i++) {
+        #pragma omp critical
+         std::cout << i << " ";
+        #pragma omp ordered //将顺序的执行1
+        {
+            #pragma omp critical
+            	std::cout << "-" << i << " ";
+        }
+    }
+}
+```
+
+- thread private: 将全局或静态变量声明为线程私有的。
+
+```cpp
+#include <omp.h>
+#include <iostream>
+int a;
+
+#pragma omp threadprivate(a)
+int main()
+{
+	std::cout << omp_get_thread_num() << &a << std::endl;
+	#pragma omp parallel num_threads(8)
+	{
+		int b;
+		#pragma omp critical
+		std::cout << omp_get_thread_num() << ":" << &a << " "<< &b << std::endl;
+		}
+	std::cin.get();
+	return 0;
+}
+```
+
+- reduction用来归约的实现，也就是将训练中的全部求和的值在求和的结果返回！除了“+”归约，/, |, &&等都可以作为归约操作的算法。
+
+```cpp
+int sum = 0;
+std::cout << omp_get_thread_num() << ":" << & num << std::endl;
+#pragma omp parallel num_threads(8) reduction(+:sum)
+{
+	#pragma omp critical
+	std::cout << omp_get_thread_num() << ":" << &num << std::endl;
+	#pragma omp for 
+	for(int i=1; i<=1000;i++){
+		sum+= i;
+	}
+} 
+
+
+std::cout << sum << std::endl;
+
+```
+
+ **copyin**： clause让 thread private声明的变量的值和主线程的值相同，如下例子：
+
+```cpp
+#include <omp.h>
+#include <iostream>
+int a ;
+#pragma omp threadprivate(a)
+int main()
+{
+    a = 99;
+    std::cout << omp_gte_thread_num() << ":" << &a << std::endl;
+    #pragma omp parallel num_thread(8) copyin(a)
+    { 
+        #pragma omp critical 
+        std::cout << omp_get_thread_num() << &a << std::endl;
+    }
+    std::cin.get();
+    return 0;
+}
+```
+
