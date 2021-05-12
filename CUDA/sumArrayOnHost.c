@@ -9,6 +9,12 @@ void sumArrayOnHost(float *A, float *B, float *C, const int N)
     }
 }
 
+__global__ void sumArrayOnGpu(float *A, float *B, float *C)
+{
+    int i = threadIdx.x;
+    C[i] = A[i] + B[i];
+}
+
 void initialData(float *ip, int size)
 {
     time_t t;
